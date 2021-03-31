@@ -1,0 +1,104 @@
+!wget https://www.dropbox.com/s/4jw31k5mlzcmgis/genres.tar.gz?dl=0
+
+!unzip /content/genres.tar.gz?dl=0
+
+!tar -xvf  '/content/genres.tar.gz?dl=0'
+
+pip install librosa
+
+from fastai.vision import *
+from fastai.metrics import error_rate
+
+import librosa
+import librosa.display
+import os
+
+clip, sample_rate= librosa.load('/content/genres/blues/blues.00000.au', sr=None)
+clip=clip[:132300]
+
+clip
+
+
+
+def create_spect(fold):
+  spectogram_path=Path('/content/spectro1')
+  os.makedirs(spectogram_path/fold,exist_ok=True)
+  audio_path=Path('/content/genres/')
+  for audio_file in list(Path(audio_path/fold).glob('*.au')):
+    sample, sample_rate=librosa.load(audio_file, duration= 10.0)
+    fig= plt.figure(figsize=[0.72,0.72])
+    ax=fig.add_subplot(111)
+    ax.axes.get_xaxis().set_visible(False)
+    ax.axes.get_yaxis().set_visible(False)
+    ax.set_frame_on(False)
+    filename= spectogram_path/fold/Path(audio_file).name.replace('.au','.jpg')
+    S= librosa.feature.melspectrogram(y=sample , sr=sample_rate)
+    librosa.display.specshow(librosa.power_to_db(S, ref=np.max))
+    plt.savefig(filename, dpi=400, bbox_inches='tight', pad_inches=0)
+    plt.close('all')
+
+classes=['country', 'disco', 'hiphop', 'jazz', 'metal', 'pop', 'reggae', 'rock']
+for genre in classes:
+  create_spect(genre)
+
+path='/content/spectro1'
+
+
+data= (ImageList.from_folder(path)
+.split_by_rand_pct(0.2)
+.label_from_folder()
+.transform([],size=224 )
+.databunch(bs= 10)).normalize(imagenet_stats)
+
+data.show_batch(rows=3, figsize=(8,8))
+
+data
+
+#Step 3 : Evaluvating the data using different pre trained model
+#resnet34
+#vgg19
+#resnet152
+
+learn=cnn_learner(data, models.resnet34, metrics= error_rate)
+
+learn.fit_one_cycle(100)
+
+learn.save('Stage-1')
+
+learn.unfreeze()
+
+learn.lr_find()
+
+learn.recorder.plot()
+
+learn.fit_one_cycle(10, max_lr=slice(2e-06))
+
+learn=cnn_learner(data, models.vgg19_bn, metrics= error_rate)
+
+learn.fit_one_cycle(100)
+
+learn.save('Stage-1')
+
+learn.unfreeze()
+
+learn.lr_find()
+
+learn.recorder.plot()
+
+learn.fit_one_cycle(10, max_lr=slice(2e-06))
+
+learn=cnn_learner(data, models.resnet152, metrics= error_rate)
+
+learn.fit_one_cycle(100)
+
+
+learn.save('Stage-1')
+
+learn.unfreeze()
+
+learn.lr_find()
+
+learn.recorder.plot()
+
+learn.fit_one_cycle(10, max_lr=slice(2e-06))
+
